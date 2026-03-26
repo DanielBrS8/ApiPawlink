@@ -34,6 +34,13 @@ public class MascotaService {
                 .orElseThrow(() -> new EntityNotFoundException("Mascota no encontrada con id: " + id));
     }
 
+    public List<MascotaDTO> findByCentro(Integer idCentro) {
+        return mascotaRepository.findByCentro_IdCentro(idCentro)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
     public List<MascotaDTO> findDisponibles() {
         return mascotaRepository.findByDisponibleAlquiler(1)
                 .stream()

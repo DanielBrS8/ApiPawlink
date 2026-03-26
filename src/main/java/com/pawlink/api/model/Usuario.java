@@ -40,6 +40,10 @@ public class Usuario {
     @Column(name = "direccion", length = 255)
     private String direccion;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_centro", referencedColumnName = "id_centro")
+    private CentroVeterinario centro;
+
     @Column(name = "rol", length = 20)
     private String rol = "user";
 

@@ -37,6 +37,13 @@ public class AlquilerService {
                 .orElseThrow(() -> new EntityNotFoundException("Alquiler no encontrado con id: " + id));
     }
 
+    public List<AlquilerDTO> findByCentro(Integer idCentro) {
+        return alquilerRepository.findByMascota_Centro_IdCentro(idCentro)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
     public List<AlquilerDTO> findByEstado(String estado) {
         return alquilerRepository.findByEstado(estado)
                 .stream()

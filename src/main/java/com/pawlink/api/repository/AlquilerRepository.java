@@ -14,4 +14,6 @@ public interface AlquilerRepository extends JpaRepository<Alquiler, Integer> {
     List<Alquiler> findByVoluntario_IdUsuario(Integer idUsuario);
 
     List<Alquiler> findByEstado(String estado);
+
+    List<Alquiler> findByMascota_Centro_IdCentro(Integer idCentro);
 }

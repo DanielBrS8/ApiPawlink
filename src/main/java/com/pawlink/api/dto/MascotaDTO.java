@@ -22,6 +22,7 @@ public class MascotaDTO {
     private Integer idMascota;
 
     // Del centro asociado devolvemos solo id y nombre (sin traer todo el grafo)
+    
     private Integer idCentro;
     private String nombreCentro;
 

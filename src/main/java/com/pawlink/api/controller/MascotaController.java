@@ -2,6 +2,7 @@ package com.pawlink.api.controller;
 
 import com.pawlink.api.dto.MascotaDTO;
 import com.pawlink.api.dto.MascotaRequestDTO;
+import com.pawlink.api.security.JwtUtil;
 import com.pawlink.api.service.MascotaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,45 +18,44 @@ public class MascotaController {
 
     private final MascotaService mascotaService;
 
-    /**
-     * GET /api/mascotas
-     * Devuelve todas las mascotas.
-     * Acepta query param ?disponible=1 para filtrar las disponibles para alquiler.
-     */
     @GetMapping
-    public ResponseEntity<List<MascotaDTO>> getAll(
+    public ResponseEntity<?> getAll(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(required = false) Integer disponible) {
 
-        List<MascotaDTO> result = (disponible != null)
-                ? mascotaService.findDisponibles()
-                : mascotaService.findAll();
+        Integer idCentro = obtenerIdCentroDesdeToken(authHeader);
+
+        List<MascotaDTO> result;
+        if (idCentro != null) {
+            result = mascotaService.findByCentro(idCentro);
+        } else if (disponible != null) {
+            result = mascotaService.findDisponibles();
+        } else {
+            result = mascotaService.findAll();
+        }
 
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * GET /api/mascotas/{id}
-     * Devuelve una mascota por su ID.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<MascotaDTO> getById(@PathVariable Integer id) {
         return ResponseEntity.ok(mascotaService.findById(id));
     }
 
-    /**
-     * POST /api/mascotas
-     * Crea una nueva mascota.
-     */
     @PostMapping
-    public ResponseEntity<MascotaDTO> create(@RequestBody MascotaRequestDTO request) {
+    public ResponseEntity<?> create(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody MascotaRequestDTO request) {
+
+        Integer idCentro = obtenerIdCentroDesdeToken(authHeader);
+        if (idCentro != null) {
+            request.setIdCentro(idCentro);
+        }
+
         MascotaDTO created = mascotaService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    /**
-     * PUT /api/mascotas/{id}
-     * Actualiza completamente una mascota existente.
-     */
     @PutMapping("/{id}")
     public ResponseEntity<MascotaDTO> update(
             @PathVariable Integer id,
@@ -63,13 +63,17 @@ public class MascotaController {
         return ResponseEntity.ok(mascotaService.update(id, request));
     }
 
-    /**
-     * DELETE /api/mascotas/{id}
-     * Elimina una mascota. Devuelve 204 No Content.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         mascotaService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private Integer obtenerIdCentroDesdeToken(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            return JwtUtil.obtenerIdCentro(token);
+        }
+        return null;
     }
 }
