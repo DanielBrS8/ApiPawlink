@@ -67,11 +67,6 @@ public class AuthController {
                     .body(Map.of("error", "Credenciales inválidas"));
         }
 
-        if (!"admin".equals(usuario.getRol()) && !"veterinario".equals(usuario.getRol())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Acceso restringido a administradores y veterinarios"));
-        }
-
         String token = JwtUtil.generarToken(usuario);
         return ResponseEntity.ok(new AuthResponseDTO(token, usuario.getIdUsuario(), usuario.getNombre(), usuario.getRol(), usuario.getCentro() != null ? usuario.getCentro().getIdCentro() : null));
     }
