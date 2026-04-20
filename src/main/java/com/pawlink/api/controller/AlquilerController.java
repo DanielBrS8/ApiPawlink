@@ -2,6 +2,7 @@ package com.pawlink.api.controller;
 
 import com.pawlink.api.dto.AlquilerDTO;
 import com.pawlink.api.dto.AlquilerRequestDTO;
+import com.pawlink.api.dto.CambioEstadoDTO;
 import com.pawlink.api.security.JwtUtil;
 import com.pawlink.api.service.AlquilerService;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +61,13 @@ public class AlquilerController {
             @PathVariable Integer id,
             @RequestBody AlquilerRequestDTO request) {
         return ResponseEntity.ok(alquilerService.update(id, request));
+    }
+
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<AlquilerDTO> cambiarEstado(
+            @PathVariable Integer id,
+            @RequestBody CambioEstadoDTO request) {
+        return ResponseEntity.ok(alquilerService.cambiarEstado(id, request.getEstado()));
     }
 
     @DeleteMapping("/{id}")

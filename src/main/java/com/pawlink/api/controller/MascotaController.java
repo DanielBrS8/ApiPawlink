@@ -21,13 +21,14 @@ public class MascotaController {
     @GetMapping
     public ResponseEntity<?> getAll(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestParam(required = false) Integer disponible) {
+            @RequestParam(required = false) Integer disponible,
+            @RequestParam(required = false) Integer idCentro) {
 
-        Integer idCentro = obtenerIdCentroDesdeToken(authHeader);
+        Integer centroFiltro = idCentro != null ? idCentro : obtenerIdCentroDesdeToken(authHeader);
 
         List<MascotaDTO> result;
-        if (idCentro != null) {
-            result = mascotaService.findByCentro(idCentro);
+        if (centroFiltro != null) {
+            result = mascotaService.findByCentro(centroFiltro);
         } else if (disponible != null) {
             result = mascotaService.findDisponibles();
         } else {

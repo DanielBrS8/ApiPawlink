@@ -10,9 +10,12 @@ import com.pawlink.api.repository.MascotaRepository;
 import com.pawlink.api.repository.UsuarioRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -67,8 +70,55 @@ public class AlquilerService {
 
     @Transactional
     public AlquilerDTO create(AlquilerRequestDTO request) {
+        validarFechas(request.getFechaInicio(), request.getFechaFin());
+        validarMascotaDisponible(request.getIdMascota());
         Alquiler alquiler = fromRequest(new Alquiler(), request);
         return toDTO(alquilerRepository.save(alquiler));
+    }
+
+    @Transactional
+    public AlquilerDTO cambiarEstado(Integer idAlquiler, String nuevoEstado) {
+        if (nuevoEstado == null || nuevoEstado.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El estado es obligatorio");
+        }
+
+        Alquiler alquiler = alquilerRepository.findById(idAlquiler)
+                .orElseThrow(() -> new EntityNotFoundException("Alquiler no encontrado con id: " + idAlquiler));
+
+        alquiler.setEstado(nuevoEstado);
+
+        String estadoNormalizado = nuevoEstado.trim().toLowerCase();
+        if (estadoNormalizado.equals("aprobado") || estadoNormalizado.equals("activa")) {
+            Mascota mascota = alquiler.getMascota();
+            if (mascota != null) {
+                mascota.setDisponibleAlquiler(0);
+                mascotaRepository.save(mascota);
+            }
+        }
+
+        return toDTO(alquilerRepository.save(alquiler));
+    }
+
+    private void validarFechas(LocalDate inicio, LocalDate fin) {
+        if (inicio == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fechaInicio es obligatoria");
+        }
+        if (fin != null && fin.isBefore(inicio)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "fechaFin debe ser mayor o igual que fechaInicio");
+        }
+    }
+
+    private void validarMascotaDisponible(Integer idMascota) {
+        if (idMascota == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "idMascota es obligatorio");
+        }
+        Mascota mascota = mascotaRepository.findById(idMascota)
+                .orElseThrow(() -> new EntityNotFoundException("Mascota no encontrada con id: " + idMascota));
+        if (mascota.getDisponibleAlquiler() == null || mascota.getDisponibleAlquiler() != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "La mascota ya no está disponible para alquiler");
+        }
     }
 
     @Transactional
