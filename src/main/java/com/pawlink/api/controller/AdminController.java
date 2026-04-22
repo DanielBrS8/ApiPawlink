@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,7 +22,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private static final List<String> ROLES_VALIDOS = List.of("veterinario", "admin");
+    private static final List<String> ROLES_VALIDOS_ADMIN = List.of("veterinario", "admin");
+    private static final String ROL_USER = "user";
 
     private final UsuarioRepository usuarioRepository;
     private final CentroVeterinarioRepository centroRepository;
@@ -33,9 +35,17 @@ public class AdminController {
             @RequestBody CrearUsuarioDTO dto) {
 
         String token = extraerToken(authHeader);
-        if (token == null || !"admin".equals(JwtUtil.obtenerRol(token))) {
+        if (token == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Solo administradores pueden crear usuarios"));
+                    .body(Map.of("error", "Token no válido"));
+        }
+        String rolSesion = JwtUtil.obtenerRol(token);
+        boolean esAdmin = "admin".equals(rolSesion);
+        boolean esVeterinario = "veterinario".equals(rolSesion);
+
+        if (!esAdmin && !esVeterinario) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "No tienes permiso para crear usuarios"));
         }
 
         if (usuarioRepository.existsByEmail(dto.getEmail())) {
@@ -43,28 +53,44 @@ public class AdminController {
                     .body(Map.of("error", "El email ya está registrado"));
         }
 
-        if (!ROLES_VALIDOS.contains(dto.getRol())) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Rol no válido. Roles permitidos: " + ROLES_VALIDOS));
-        }
-
-        if ("veterinario".equals(dto.getRol()) && dto.getIdCentro() == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Un veterinario debe tener un centro asignado"));
+        Integer idCentroAsignado;
+        String rolAsignado;
+        if (esAdmin) {
+            if (!ROLES_VALIDOS_ADMIN.contains(dto.getRol())) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Rol no válido. Roles permitidos: " + ROLES_VALIDOS_ADMIN));
+            }
+            if ("veterinario".equals(dto.getRol()) && dto.getIdCentro() == null) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Un veterinario debe tener un centro asignado"));
+            }
+            idCentroAsignado = dto.getIdCentro();
+            rolAsignado = dto.getRol();
+        } else {
+            // Veterinario: solo puede crear usuarios normales en su propio centro
+            if (dto.getRol() != null && !ROL_USER.equals(dto.getRol())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Los veterinarios solo pueden crear usuarios normales"));
+            }
+            idCentroAsignado = JwtUtil.obtenerIdCentro(token);
+            if (idCentroAsignado == null) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "El veterinario no tiene un centro asignado"));
+            }
+            rolAsignado = ROL_USER;
         }
 
         Usuario usuario = new Usuario();
         usuario.setNombre(dto.getNombre());
         usuario.setEmail(dto.getEmail());
         usuario.setPassword(BCrypt.hashpw(dto.getPassword(), BCrypt.gensalt()));
-        usuario.setRol(dto.getRol());
+        usuario.setRol(rolAsignado);
 
-        if (dto.getIdCentro() != null) {
-            CentroVeterinario centro = centroRepository.findById(dto.getIdCentro())
-                    .orElse(null);
+        if (idCentroAsignado != null) {
+            CentroVeterinario centro = centroRepository.findById(idCentroAsignado).orElse(null);
             if (centro == null) {
                 return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Centro veterinario no encontrado con id: " + dto.getIdCentro()));
+                        .body(Map.of("error", "Centro veterinario no encontrado con id: " + idCentroAsignado));
             }
             usuario.setCentro(centro);
         }
@@ -82,21 +108,43 @@ public class AdminController {
             @RequestHeader("Authorization") String authHeader) {
 
         String token = extraerToken(authHeader);
-        if (token == null || !"admin".equals(JwtUtil.obtenerRol(token))) {
+        if (token == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Solo administradores pueden listar usuarios"));
+                    .body(Map.of("error", "Token no válido"));
+        }
+        String rolSesion = JwtUtil.obtenerRol(token);
+        boolean esAdmin = "admin".equals(rolSesion);
+        boolean esVeterinario = "veterinario".equals(rolSesion);
+
+        if (!esAdmin && !esVeterinario) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "No tienes permiso para listar usuarios"));
         }
 
+        final Integer idCentroVet = esVeterinario ? JwtUtil.obtenerIdCentro(token) : null;
+
         List<Map<String, Object>> usuarios = usuarioRepository.findAll().stream()
-                .map(u -> Map.<String, Object>of(
-                        "id", u.getIdUsuario(),
-                        "nombre", u.getNombre(),
-                        "email", u.getEmail(),
-                        "rol", u.getRol(),
-                        "idCentro", u.getCentro() != null ? u.getCentro().getIdCentro() : 0,
-                        "nombreCentro", u.getCentro() != null ? u.getCentro().getNombre() : "",
-                        "activo", u.getActivo()
-                ))
+                .filter(u -> {
+                    if (esAdmin) return true;
+                    if (!ROL_USER.equals(u.getRol())) return false;
+                    Integer idCentroUsuario = u.getCentro() != null ? u.getCentro().getIdCentro() : null;
+                    return idCentroVet != null && idCentroVet.equals(idCentroUsuario);
+                })
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", u.getIdUsuario());
+                    m.put("nombre", u.getNombre());
+                    m.put("email", u.getEmail());
+                    m.put("rol", u.getRol());
+                    m.put("idCentro", u.getCentro() != null ? u.getCentro().getIdCentro() : 0);
+                    m.put("nombreCentro", u.getCentro() != null ? u.getCentro().getNombre() : "");
+                    m.put("activo", u.getActivo());
+                    m.put("telefono", u.getTelefono());
+                    m.put("direccion", u.getDireccion());
+                    m.put("monedas", u.getMonedas());
+                    m.put("fechaRegistro", u.getFechaRegistro() != null ? u.getFechaRegistro().toString() : null);
+                    return m;
+                })
                 .toList();
 
         return ResponseEntity.ok(usuarios);
@@ -110,14 +158,35 @@ public class AdminController {
             @RequestBody CrearUsuarioDTO dto) {
 
         String token = extraerToken(authHeader);
-        if (token == null || !"admin".equals(JwtUtil.obtenerRol(token))) {
+        if (token == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Solo administradores pueden editar usuarios"));
+                    .body(Map.of("error", "Token no válido"));
+        }
+        String rolSesion = JwtUtil.obtenerRol(token);
+        boolean esAdmin = "admin".equals(rolSesion);
+        boolean esVeterinario = "veterinario".equals(rolSesion);
+
+        if (!esAdmin && !esVeterinario) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "No tienes permiso para editar usuarios"));
         }
 
         Usuario usuario = usuarioRepository.findById(id).orElse(null);
         if (usuario == null) {
             return ResponseEntity.notFound().build();
+        }
+
+        if (esVeterinario) {
+            if (!ROL_USER.equals(usuario.getRol())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Solo puedes editar usuarios normales"));
+            }
+            Integer idCentroVet = JwtUtil.obtenerIdCentro(token);
+            Integer idCentroUsuario = usuario.getCentro() != null ? usuario.getCentro().getIdCentro() : null;
+            if (idCentroVet == null || !idCentroVet.equals(idCentroUsuario)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Solo puedes editar usuarios de tu centro"));
+            }
         }
 
         // Si cambia el email, verificar que no esté en uso por otro usuario
@@ -132,14 +201,14 @@ public class AdminController {
         if (dto.getPassword() != null && !dto.getPassword().isEmpty()) {
             usuario.setPassword(BCrypt.hashpw(dto.getPassword(), BCrypt.gensalt()));
         }
-        if (dto.getRol() != null) {
-            if (!ROLES_VALIDOS.contains(dto.getRol())) {
+        if (esAdmin && dto.getRol() != null) {
+            if (!ROLES_VALIDOS_ADMIN.contains(dto.getRol())) {
                 return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Rol no válido. Roles permitidos: " + ROLES_VALIDOS));
+                        .body(Map.of("error", "Rol no válido. Roles permitidos: " + ROLES_VALIDOS_ADMIN));
             }
             usuario.setRol(dto.getRol());
         }
-        if (dto.getIdCentro() != null) {
+        if (esAdmin && dto.getIdCentro() != null) {
             CentroVeterinario centro = centroRepository.findById(dto.getIdCentro()).orElse(null);
             if (centro == null) {
                 return ResponseEntity.badRequest()
@@ -162,13 +231,35 @@ public class AdminController {
             @PathVariable Integer id) {
 
         String token = extraerToken(authHeader);
-        if (token == null || !"admin".equals(JwtUtil.obtenerRol(token))) {
+        if (token == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Solo administradores pueden eliminar usuarios"));
+                    .body(Map.of("error", "Token no válido"));
+        }
+        String rolSesion = JwtUtil.obtenerRol(token);
+        boolean esAdmin = "admin".equals(rolSesion);
+        boolean esVeterinario = "veterinario".equals(rolSesion);
+
+        if (!esAdmin && !esVeterinario) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "No tienes permiso para eliminar usuarios"));
         }
 
-        if (!usuarioRepository.existsById(id)) {
+        Usuario usuario = usuarioRepository.findById(id).orElse(null);
+        if (usuario == null) {
             return ResponseEntity.notFound().build();
+        }
+
+        if (esVeterinario) {
+            if (!ROL_USER.equals(usuario.getRol())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Solo puedes eliminar usuarios normales"));
+            }
+            Integer idCentroVet = JwtUtil.obtenerIdCentro(token);
+            Integer idCentroUsuario = usuario.getCentro() != null ? usuario.getCentro().getIdCentro() : null;
+            if (idCentroVet == null || !idCentroVet.equals(idCentroUsuario)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Solo puedes eliminar usuarios de tu centro"));
+            }
         }
 
         usuarioRepository.deleteById(id);

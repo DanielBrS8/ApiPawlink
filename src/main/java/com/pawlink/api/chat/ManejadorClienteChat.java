@@ -4,13 +4,15 @@ import java.io.*;
 import java.net.*;
 
 public class ManejadorClienteChat implements Runnable {
-    private Socket socket;
+    private final Socket socket;
+    private final ServidorChat servidorChat;
     private PrintWriter salida;
     private BufferedReader entrada;
-    private String nombreUsuario;
+    private Integer idUsuario;
 
-    public ManejadorClienteChat(Socket socket) {
+    public ManejadorClienteChat(Socket socket, ServidorChat servidorChat) {
         this.socket = socket;
+        this.servidorChat = servidorChat;
     }
 
     @Override
@@ -19,62 +21,46 @@ public class ManejadorClienteChat implements Runnable {
             entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             salida = new PrintWriter(socket.getOutputStream(), true);
 
-            salida.println("Bienvenido al chat! Por favor ingresa tu nombre:");
-            nombreUsuario = entrada.readLine();
-            if (nombreUsuario == null || nombreUsuario.trim().isEmpty()) {
-                nombreUsuario = "Anónimo_" + socket.getPort();
+            String primeraLinea = entrada.readLine();
+            if (primeraLinea == null) {
+                cerrarSocket();
+                return;
             }
 
-            salida.println("Bienvenido " + nombreUsuario + "!");
-            salida.println("Comandos disponibles: /usuarios, /salir");
-            ServidorChat.broadcast("*** " + nombreUsuario + " se ha unido al chat ***", this);
-
-            String mensaje;
-            while ((mensaje = entrada.readLine()) != null) {
-                if (mensaje.startsWith("/")) {
-                    procesarComando(mensaje);
-                } else if (!mensaje.trim().isEmpty()) {
-                    String mensajeFormateado = nombreUsuario + ": " + mensaje;
-                    System.out.println(mensajeFormateado);
-                    ServidorChat.broadcast(mensajeFormateado, this);
-                }
+            try {
+                idUsuario = Integer.parseInt(primeraLinea.trim());
+            } catch (NumberFormatException e) {
+                cerrarSocket();
+                return;
             }
-        } catch (IOException e) {
-            System.out.println("Error con el cliente " + nombreUsuario + ": " + e.getMessage());
+
+            servidorChat.registrar(idUsuario, this);
+
+            while (entrada.readLine() != null) {
+                // Mantener la conexión viva; el servidor sólo envía notificaciones.
+            }
+        } catch (IOException ignored) {
         } finally {
-            desconectar();
+            if (idUsuario != null) {
+                servidorChat.eliminar(idUsuario);
+            }
+            cerrarSocket();
         }
     }
 
-    private void procesarComando(String comando) {
-        if (comando.equalsIgnoreCase("/salir")) {
-            salida.println("Hasta luego!");
-            desconectar();
-        } else if (comando.equalsIgnoreCase("/usuarios")) {
-            salida.println(ServidorChat.obtenerListaUsuarios());
-        } else {
-            salida.println("Comando desconocido. Comandos disponibles: /usuarios, /salir");
-        }
-    }
-
-    public void enviarMensaje(String mensaje) {
+    public void enviarNotificacion(String texto) {
         if (salida != null) {
-            salida.println(mensaje);
+            salida.println(texto);
+            salida.flush();
         }
     }
 
-    public String getNombreUsuario() {
-        return nombreUsuario;
-    }
-
-    private void desconectar() {
+    private void cerrarSocket() {
         try {
-            ServidorChat.removerCliente(this);
-            if (socket != null) {
+            if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ignored) {
         }
     }
 }
