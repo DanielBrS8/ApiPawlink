@@ -23,13 +23,13 @@ public class Vacuna {
     @JoinColumn(name = "id_mascota", referencedColumnName = "id_mascota", nullable = false)
     private Mascota mascota;
 
-    @Column(name = "nombre_vacuna", nullable = false, length = 150)
+    @Column(name = "nombre", nullable = false, length = 100)
     private String nombreVacuna;
 
-    @Column(name = "fecha_administracion", nullable = false)
+    @Column(name = "fecha", nullable = false)
     private LocalDate fechaAdministracion;
 
-    @Column(name = "fecha_proxima_dosis")
+    @Column(name = "proxima_dosis")
     private LocalDate fechaProximaDosis;
 
     @Column(name = "veterinario", length = 150)
