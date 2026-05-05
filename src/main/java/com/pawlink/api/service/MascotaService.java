@@ -70,9 +70,6 @@ public class MascotaService {
         mascotaRepository.deleteById(id);
     }
 
-    // ---------------------------------------------------------------------------
-    // Mappers internos — sin librería externa para mantener el MVP simple
-    // ---------------------------------------------------------------------------
 
     private MascotaDTO toDTO(Mascota m) {
         return MascotaDTO.builder()
