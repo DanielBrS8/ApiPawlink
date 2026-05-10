@@ -71,7 +71,10 @@ public class AlquilerService {
     @Transactional
     public AlquilerDTO create(AlquilerRequestDTO request) {
         validarFechas(request.getFechaInicio(), request.getFechaFin());
-        validarMascotaDisponible(request.getIdMascota());
+        Mascota mascota = validarMascotaDisponible(request.getIdMascota());
+        // Bloquear la mascota desde que se crea la solicitud para que nadie más pueda pedirla
+        mascota.setDisponibleAlquiler(0);
+        mascotaRepository.save(mascota);
         Alquiler alquiler = fromRequest(new Alquiler(), request);
         return toDTO(alquilerRepository.save(alquiler));
     }
@@ -88,10 +91,15 @@ public class AlquilerService {
         alquiler.setEstado(nuevoEstado);
 
         String estadoNormalizado = nuevoEstado.trim().toLowerCase();
+        Mascota mascota = alquiler.getMascota();
         if (estadoNormalizado.equals("aprobado") || estadoNormalizado.equals("activa")) {
-            Mascota mascota = alquiler.getMascota();
             if (mascota != null) {
                 mascota.setDisponibleAlquiler(0);
+                mascotaRepository.save(mascota);
+            }
+        } else if (estadoNormalizado.equals("rechazado") || estadoNormalizado.equals("cancelado")) {
+            if (mascota != null) {
+                mascota.setDisponibleAlquiler(1);
                 mascotaRepository.save(mascota);
             }
         }
@@ -109,7 +117,7 @@ public class AlquilerService {
         }
     }
 
-    private void validarMascotaDisponible(Integer idMascota) {
+    private Mascota validarMascotaDisponible(Integer idMascota) {
         if (idMascota == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "idMascota es obligatorio");
         }
@@ -119,6 +127,7 @@ public class AlquilerService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "La mascota ya no está disponible para alquiler");
         }
+        return mascota;
     }
 
     @Transactional
@@ -131,8 +140,12 @@ public class AlquilerService {
 
     @Transactional
     public void delete(Integer id) {
-        if (!alquilerRepository.existsById(id)) {
-            throw new EntityNotFoundException("Alquiler no encontrado con id: " + id);
+        Alquiler alquiler = alquilerRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Alquiler no encontrado con id: " + id));
+        Mascota mascota = alquiler.getMascota();
+        if (mascota != null) {
+            mascota.setDisponibleAlquiler(1);
+            mascotaRepository.save(mascota);
         }
         alquilerRepository.deleteById(id);
     }

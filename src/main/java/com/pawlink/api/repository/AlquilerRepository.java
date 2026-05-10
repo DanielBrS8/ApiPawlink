@@ -16,4 +16,6 @@ public interface AlquilerRepository extends JpaRepository<Alquiler, Integer> {
     List<Alquiler> findByEstado(String estado);
 
     List<Alquiler> findByMascota_Centro_IdCentro(Integer idCentro);
+
+    boolean existsByMascota_IdMascotaAndVoluntario_IdUsuarioAndEstado(Integer idMascota, Integer idUsuario, String estado);
 }

@@ -30,14 +30,17 @@ public class AlquilerController {
 
         List<AlquilerDTO> result;
 
-        if (idCentro != null) {
-            result = alquilerService.findByCentro(idCentro);
-        } else if (estado != null) {
-            result = alquilerService.findByEstado(estado);
+        // Los filtros explícitos del cliente tienen prioridad sobre el filtro
+        // por centro implícito del JWT (si no, pedir ?voluntario=X queda ignorado
+        // cuando el usuario está vinculado a un centro).
+        if (voluntario != null) {
+            result = alquilerService.findByVoluntario(voluntario);
         } else if (mascota != null) {
             result = alquilerService.findByMascota(mascota);
-        } else if (voluntario != null) {
-            result = alquilerService.findByVoluntario(voluntario);
+        } else if (estado != null) {
+            result = alquilerService.findByEstado(estado);
+        } else if (idCentro != null) {
+            result = alquilerService.findByCentro(idCentro);
         } else {
             result = alquilerService.findAll();
         }

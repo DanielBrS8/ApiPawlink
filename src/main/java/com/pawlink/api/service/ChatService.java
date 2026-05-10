@@ -10,7 +10,6 @@ import com.pawlink.api.model.Usuario;
 import com.pawlink.api.repository.ConsultaChatRepository;
 import com.pawlink.api.repository.MensajeRepository;
 import com.pawlink.api.repository.UsuarioRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -60,7 +59,7 @@ public class ChatService {
 
     public List<UsuarioDTO> findContactos(Integer idUsuario) {
         Usuario solicitante = usuarioRepository.findById(idUsuario)
-                .orElseThrow(() -> new EntityNotFoundException(
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         USUARIO_NO_ENCONTRADO + idUsuario));
 
         List<Usuario> candidatos = "user".equalsIgnoreCase(solicitante.getRol())
@@ -94,10 +93,10 @@ public class ChatService {
         }
 
         Usuario usuario = usuarioRepository.findById(idUsuario)
-                .orElseThrow(() -> new EntityNotFoundException(
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         USUARIO_NO_ENCONTRADO + idUsuario));
         Usuario veterinario = usuarioRepository.findById(idVeterinario)
-                .orElseThrow(() -> new EntityNotFoundException(
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         USUARIO_NO_ENCONTRADO + idVeterinario));
 
         ConsultaChat conversacion = new ConsultaChat();
@@ -112,7 +111,8 @@ public class ChatService {
 
     public List<MensajeDTO> findMensajes(Integer idConversacion) {
         if (!consultaChatRepository.existsById(idConversacion)) {
-            throw new EntityNotFoundException("Conversación no encontrada con id: " + idConversacion);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Conversación no encontrada con id: " + idConversacion);
         }
         return mensajeRepository
                 .findByConsultaChat_IdConversacionOrderByFechaAsc(idConversacion)
@@ -131,7 +131,7 @@ public class ChatService {
         }
 
         ConsultaChat conversacion = consultaChatRepository.findById(idConversacion)
-                .orElseThrow(() -> new EntityNotFoundException(
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Conversación no encontrada con id: " + idConversacion));
 
         Integer idCliente = conversacion.getUsuario() != null
@@ -145,7 +145,7 @@ public class ChatService {
         }
 
         Usuario emisor = usuarioRepository.findById(idEmisor)
-                .orElseThrow(() -> new EntityNotFoundException(
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         USUARIO_NO_ENCONTRADO + idEmisor));
 
         Mensaje mensaje = new Mensaje();
