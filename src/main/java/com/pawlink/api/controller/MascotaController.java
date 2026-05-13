@@ -73,7 +73,12 @@ public class MascotaController {
     private Integer obtenerIdCentroDesdeToken(String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            return JwtUtil.obtenerIdCentro(token);
+            try {
+                return JwtUtil.obtenerIdCentro(token);
+            } catch (Exception e) {
+                // Token inválido o expirado: tratar como petición sin token
+                return null;
+            }
         }
         return null;
     }
